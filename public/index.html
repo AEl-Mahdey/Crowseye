@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Map — Signal</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f0f0f;
+      color: #f0f0f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #222;
+      background: #0f0f0f;
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+
+    header .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: 2px; color: #00e5ff; text-decoration: none; }
+    nav a { color: #aaa; text-decoration: none; margin-left: 1.5rem; font-size: 0.9rem; transition: color 0.2s; }
+    nav a:hover, nav a.active { color: #00e5ff; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1.5rem;
+      background: #111;
+      border-bottom: 1px solid #1e1e1e;
+      flex-wrap: wrap;
+      z-index: 999;
+      flex-shrink: 0;
+    }
+
+    .toolbar label { font-size: 0.8rem; color: #888; }
+
+    .toolbar select {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #f0f0f0;
+      padding: 0.35rem 0.6rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .toolbar select:focus { border-color: #00e5ff; }
+
+    .hint {
+      margin-left: auto;
+      font-size: 0.78rem;
+      color: #444;
+    }
+
+    .hint span { color: #00e5ff; }
+
+    /* Main layout */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    #map { flex: 1; }
+
+    /* Results panel */
+    #panel {
+      width: 340px;
+      background: #111;
+      border-left: 1px solid #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: width 0.3s;
+    }
+
+    #panel.collapsed { width: 0; border: none; }
+
+    .panel-header {
+      padding: 1rem 1.2rem 0.75rem;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+    }
+
+    .panel-header .panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #f0f0f0;
+      margin-bottom: 2px;
+    }
+
+    .panel-header .panel-sub {
+      font-size: 0.75rem;
+      color: #555;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 0.6rem;
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active { color: #00e5ff; border-bottom-color: #00e5ff; }
+    .tab-btn:hover:not(.active) { color: #aaa; }
+
+    .tab-count {
+      display: inline-block;
+      background: #1e1e1e;
+      border-radius: 10px;
+      padding: 1px 6px;
+      font-size: 0.7rem;
+      margin-left: 4px;
+      color: #666;
+    }
+
+    .tab-btn.active .tab-count { background: #00e5ff22; color: #00e5ff; }
+
+    #panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem;
+    }
+
+    #panel-body::-webkit-scrollbar { width: 5px; }
+    #panel-body::-webkit-scrollbar-track { background: #111; }
+    #panel-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+    /* States */
+    .state-idle, .state-loading, .state-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #444;
+      font-size: 0.85rem;
+      text-align: center;
+      gap: 0.5rem;
+    }
+
+    .state-idle .icon, .state-empty .icon { font-size: 2rem; }
+
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid #1e1e1e;
+      border-top-color: #00e5ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Market cards */
+    .market-card {
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 0.6rem;
+      transition: border-color 0.15s;
+    }
+
+    .market-card:hover { border-color: #333; }
+
+    .market-card a {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .market-title {
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: #e0e0e0;
+      line-height: 1.4;
+      margin-bottom: 0.5rem;
+    }
+
+    .market-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-poly { background: #00e5ff22; color: #00e5ff; }
+    .badge-kalshi { background: #51cf6622; color: #51cf66; }
+
+    .market-volume {
+      font-size: 0.72rem;
+      color: #555;
+      margin-left: auto;
+    }
+
+    .market-volume span { color: #888; }
+
+    .error-box {
+      background: #ff444411;
+      border: 1px solid #ff444433;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      color: #ff8888;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Map styles */
+    .leaflet-popup-content-wrapper {
+      background: #161616;
+      color: #f0f0f0;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+
+    .leaflet-popup-tip { background: #161616; }
+    .leaflet-popup-content { margin: 10px 14px; font-size: 0.85rem; }
+
+    .leaflet-control-zoom a {
+      background: #161616 !important;
+      color: #ccc !important;
+      border-color: #2a2a2a !important;
+    }
+
+    .leaflet-control-zoom a:hover { background: #222 !important; color: #00e5ff !important; }
+    .leaflet-control-attribution { background: #0f0f0faa !important; color: #444 !important; }
+    .leaflet-control-attribution a { color: #555 !important; }
+
+    /* Coordinate bar */
+    #coord-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111c;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 4px 14px;
+      font-size: 0.75rem;
+      color: #555;
+      z-index: 900;
+      pointer-events: none;
+      backdrop-filter: blur(6px);
+      white-space: nowrap;
+    }
+
+    #coord-bar span { color: #00e5ff; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="logo">SIGNAL</a>
+    <nav>
+      <a href="/" class="active">Map</a>
+    </nav>
+  </header>
+
+  <div class="toolbar">
+    <label>Style:</label>
+    <select id="layer-select">
+      <option value="dark">Dark</option>
+      <option value="streets">Streets</option>
+      <option value="satellite">Satellite</option>
+      <option value="topo">Topo</option>
+    </select>
+    <div class="hint">Click a country to see <span>prediction markets</span></div>
+  </div>
+
+  <div class="main">
+    <div id="map"></div>
+
+    <!-- Side panel -->
+    <div id="panel">
+      <div class="panel-header">
+        <div class="panel-title" id="panel-country">Prediction Markets</div>
+        <div class="panel-sub" id="panel-sub">Click any country on the map</div>
+      </div>
+      <div class="panel-tabs">
+        <button class="tab-btn active" id="tab-poly" onclick="switchTab('poly')">
+          Polymarket <span class="tab-count" id="count-poly">—</span>
+        </button>
+        <button class="tab-btn" id="tab-kalshi" onclick="switchTab('kalshi')">
+          Kalshi <span class="tab-count" id="count-kalshi">—</span>
+        </button>
+      </div>
+      <div id="panel-body">
+        <div class="state-idle">
+          <div class="icon">🌍</div>
+          <div>Select a country to explore markets</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="coord-bar">Lat: <span id="lat">—</span> &nbsp; Lng: <span id="lng">—</span></div>
+
+  <script>
+    // ── Tile layers ──────────────────────────────────────────────
+    const tiles = {
+      dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+      }),
+      streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+      }),
+      satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri', maxZoom: 19
+      }),
+      topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenTopoMap', maxZoom: 17
+      })
+    };
+
+    const map = L.map('map', { center: [20, 0], zoom: 2, layers: [tiles.dark] });
+    let currentTile = 'dark';
+    let geojsonLayer = null;
+    let selectedLayer = null;
+    let currentData = { polymarkets: [], kalshiMarkets: [] };
+    let activeTab = 'poly';
+
+    document.getElementById('layer-select').addEventListener('change', function () {
+      map.removeLayer(tiles[currentTile]);
+      currentTile = this.value;
+      map.addLayer(tiles[currentTile]);
+    });
+
+    // Coordinate display
+    map.on('mousemove', e => {
+      document.getElementById('lat').textContent = e.latlng.lat.toFixed(4);
+      document.getElementById('lng').textContent = e.latlng.lng.toFixed(4);
+    });
+
+    // ── GeoJSON country layer ────────────────────────────────────
+    const countryStyle = {
+      fillColor: '#00e5ff',
+      fillOpacity: 0,
+      color: '#00e5ff',
+      weight: 0.4,
+      opacity: 0.25
+    };
+
+    const hoverStyle = { fillOpacity: 0.12, weight: 1, opacity: 0.6 };
+    const selectedStyle = { fillOpacity: 0.2, weight: 1.5, opacity: 0.8 };
+
+    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+      .then(r => r.json())
+      .then(data => {
+        geojsonLayer = L.geoJSON(data, {
+          style: countryStyle,
+          onEachFeature: (feature, layer) => {
+            layer.on({
+              mouseover(e) {
+                if (layer !== selectedLayer) layer.setStyle(hoverStyle);
+                layer.bringToFront();
+              },
+              mouseout(e) {
+                if (layer !== selectedLayer) layer.setStyle(countryStyle);
+              },
+              click(e) {
+                // Reset previous selection
+                if (selectedLayer && selectedLayer !== layer) {
+                  selectedLayer.setStyle(countryStyle);
+                }
+                selectedLayer = layer;
+                layer.setStyle(selectedStyle);
+
+                const country = feature.properties.ADMIN || feature.properties.name;
+                loadMarkets(country);
+                map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 6 });
+              }
+            });
+          }
+        }).addTo(map);
+      });
+
+    // ── Load markets from backend ────────────────────────────────
+    async function loadMarkets(country) {
+      document.getElementById('panel-country').textContent = country;
+      document.getElementById('panel-sub').textContent = 'Fetching markets…';
+      document.getElementById('panel-body').innerHTML = `
+        <div class="state-loading"><div class="spinner"></div></div>`;
+      document.getElementById('count-poly').textContent = '…';
+      document.getElementById('count-kalshi').textContent = '…';
+
+      try {
+        const res = await fetch(`/api/markets/${encodeURIComponent(country)}`);
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+
+        currentData = data;
+        document.getElementById('count-poly').textContent = data.polymarkets.length;
+        document.getElementById('count-kalshi').textContent = data.kalshiMarkets.length;
+
+        const total = data.polymarkets.length + data.kalshiMarkets.length;
+        document.getElementById('panel-sub').textContent =
+          total > 0 ? `${total} open market${total !== 1 ? 's' : ''} found` : 'No markets found for this country';
+
+        renderTab(activeTab);
+      } catch (err) {
+        document.getElementById('panel-sub').textContent = 'Error loading markets';
+        document.getElementById('panel-body').innerHTML = `
+          <div class="error-box">⚠ ${err.message}</div>`;
+      }
+    }
+
+    // ── Tab switching ────────────────────────────────────────────
+    function switchTab(tab) {
+      activeTab = tab;
+      document.getElementById('tab-poly').classList.toggle('active', tab === 'poly');
+      document.getElementById('tab-kalshi').classList.toggle('active', tab === 'kalshi');
+      renderTab(tab);
+    }
+
+    window.switchTab = switchTab;
+
+    function renderTab(tab) {
+      const markets = tab === 'poly' ? currentData.polymarkets : currentData.kalshiMarkets;
+      const body = document.getElementById('panel-body');
+
+      if (!markets || markets.length === 0) {
+        body.innerHTML = `
+          <div class="state-empty">
+            <div class="icon">${tab === 'poly' ? '📊' : '📈'}</div>
+            <div>No ${tab === 'poly' ? 'Polymarket' : 'Kalshi'} markets found for this country</div>
+          </div>`;
+        return;
+      }
+
+      body.innerHTML = markets.map(m => `
+        <div class="market-card">
+          <a href="${m.url}" target="_blank" rel="noopener">
+            <div class="market-title">${m.title}</div>
+            <div class="market-meta">
+              <span class="badge ${m.platform === 'Polymarket' ? 'badge-poly' : 'badge-kalshi'}">
+                ${m.platform}
+              </span>
+              ${m.volume != null ? `<div class="market-volume"><span>Vol:</span> $${formatVolume(m.volume)}</div>` : ''}
+            </div>
+          </a>
+        </div>
+      `).join('');
+    }
+
+    function formatVolume(v) {
+      if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+      if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+      return Number(v).toFixed(0);
+    }
+  </script>
+
+</body>
+</html>
