@@ -111,6 +111,31 @@
       color: #555;
     }
 
+    .panel-sort {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-sort label { font-size: 0.75rem; color: #555; white-space: nowrap; }
+
+    .panel-sort select {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #ccc;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .panel-sort select:focus { border-color: #00e5ff; }
+
     .panel-tabs {
       display: flex;
       border-bottom: 1px solid #1e1e1e;
@@ -291,7 +316,7 @@
     <a href="/" class="logo">SIGNAL</a>
     <nav>
       <a href="/">Home</a>
-      <a href="/map.html" class="active">Map</a>
+      <a href="/map" class="active">Map</a>
     </nav>
   </header>
 
@@ -314,6 +339,15 @@
       <div class="panel-header">
         <div class="panel-title" id="panel-country">Prediction Markets</div>
         <div class="panel-sub" id="panel-sub">Click any country on the map</div>
+      </div>
+      <div class="panel-sort">
+        <label>Sort:</label>
+        <select id="sort-select" onchange="onSortChange()">
+          <option value="volume">Highest volume</option>
+          <option value="volume_week">Biggest volume change</option>
+          <option value="prediction_change">Biggest prediction change</option>
+          <option value="latest">Latest markets</option>
+        </select>
       </div>
       <div class="panel-tabs">
         <button class="tab-btn active" id="tab-poly" onclick="switchTab('poly')">
@@ -356,7 +390,11 @@
     let geojsonLayer = null;
     let selectedLayer = null;
     let currentData = { polymarkets: [], kalshiMarkets: [] };
+    let nextCursors = { poly: null, kalshi: null };
+    let currentCountry = null;
     let activeTab = 'poly';
+    let activeSort = 'volume';
+    let loadingMore = false;
 
     document.getElementById('layer-select').addEventListener('change', function () {
       map.removeLayer(tiles[currentTile]);
@@ -415,33 +453,110 @@
 
     // ── Load markets from backend ────────────────────────────────
     async function loadMarkets(country) {
+      currentCountry = country;
+      currentData = { polymarkets: [], kalshiMarkets: [] };
+      nextCursors = { poly: null, kalshi: null };
+
       document.getElementById('panel-country').textContent = country;
       document.getElementById('panel-sub').textContent = 'Fetching markets…';
-      document.getElementById('panel-body').innerHTML = `
-        <div class="state-loading"><div class="spinner"></div></div>`;
+      document.getElementById('panel-body').innerHTML = `<div class="state-loading"><div class="spinner"></div></div>`;
       document.getElementById('count-poly').textContent = '…';
       document.getElementById('count-kalshi').textContent = '…';
 
       try {
-        const res = await fetch(`/api/markets/${encodeURIComponent(country)}`);
-        const data = await res.json();
+        const data = await fetchPage(country, null, null);
 
-        if (data.error) throw new Error(data.error);
+        currentData.polymarkets = data.polymarkets;
+        currentData.kalshiMarkets = data.kalshiMarkets;
+        nextCursors = data.nextCursors;
 
-        currentData = data;
-        document.getElementById('count-poly').textContent = data.polymarkets.length;
-        document.getElementById('count-kalshi').textContent = data.kalshiMarkets.length;
-
-        const total = data.polymarkets.length + data.kalshiMarkets.length;
-        document.getElementById('panel-sub').textContent =
-          total > 0 ? `${total} open market${total !== 1 ? 's' : ''} found` : 'No markets found for this country';
-
+        updateCounts();
         renderTab(activeTab);
       } catch (err) {
         document.getElementById('panel-sub').textContent = 'Error loading markets';
-        document.getElementById('panel-body').innerHTML = `
-          <div class="error-box">⚠ ${err.message}</div>`;
+        document.getElementById('panel-body').innerHTML = `<div class="error-box">⚠ ${err.message}</div>`;
       }
+    }
+
+    async function fetchPage(country, polyCursor, kalshiCursor) {
+      const params = new URLSearchParams();
+      if (polyCursor) params.set('poly_cursor', polyCursor);
+      if (kalshiCursor) params.set('kalshi_cursor', kalshiCursor);
+      const res = await fetch(`/api/markets/${encodeURIComponent(country)}?${params}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    }
+
+    async function loadMore() {
+      if (loadingMore || !currentCountry) return;
+      const cursor = activeTab === 'poly' ? nextCursors.poly : nextCursors.kalshi;
+      if (!cursor) return;
+
+      loadingMore = true;
+      document.getElementById('load-more-btn').textContent = 'Loading…';
+      document.getElementById('load-more-btn').disabled = true;
+
+      try {
+        const data = await fetchPage(
+          currentCountry,
+          activeTab === 'poly' ? cursor : null,
+          activeTab === 'kalshi' ? cursor : null,
+        );
+
+        if (activeTab === 'poly') {
+          currentData.polymarkets.push(...data.polymarkets);
+          nextCursors.poly = data.nextCursors.poly;
+        } else {
+          currentData.kalshiMarkets.push(...data.kalshiMarkets);
+          nextCursors.kalshi = data.nextCursors.kalshi;
+        }
+
+        updateCounts();
+        renderTab(activeTab);
+      } catch (err) {
+        document.getElementById('load-more-btn').textContent = 'Load more';
+        document.getElementById('load-more-btn').disabled = false;
+      } finally {
+        loadingMore = false;
+      }
+    }
+
+    window.loadMore = loadMore;
+
+    function onSortChange() {
+      activeSort = document.getElementById('sort-select').value;
+      renderTab(activeTab);
+    }
+
+    window.onSortChange = onSortChange;
+
+    function sortMarkets(markets) {
+      const sorted = [...markets];
+      switch (activeSort) {
+        case 'volume_week':
+          return sorted.sort((a, b) => (b.volume_week ?? 0) - (a.volume_week ?? 0));
+        case 'prediction_change':
+          // Proxy: ratio of recent volume to total (higher = more active price movement)
+          return sorted.sort((a, b) => {
+            const ratioA = a.volume > 0 ? (a.volume_week ?? 0) / a.volume : 0;
+            const ratioB = b.volume > 0 ? (b.volume_week ?? 0) / b.volume : 0;
+            return ratioB - ratioA;
+          });
+        case 'latest':
+          return sorted.sort((a, b) => (b.start_time ?? 0) - (a.start_time ?? 0));
+        case 'volume':
+        default:
+          return sorted.sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0));
+      }
+    }
+
+    function updateCounts() {
+      document.getElementById('count-poly').textContent = currentData.polymarkets.length;
+      document.getElementById('count-kalshi').textContent = currentData.kalshiMarkets.length;
+      const total = currentData.polymarkets.length + currentData.kalshiMarkets.length;
+      document.getElementById('panel-sub').textContent =
+        total > 0 ? `${total} open market${total !== 1 ? 's' : ''} found` : 'No markets found for this country';
     }
 
     // ── Tab switching ────────────────────────────────────────────
@@ -455,7 +570,9 @@
     window.switchTab = switchTab;
 
     function renderTab(tab) {
-      const markets = tab === 'poly' ? currentData.polymarkets : currentData.kalshiMarkets;
+      const raw = tab === 'poly' ? currentData.polymarkets : currentData.kalshiMarkets;
+      const markets = sortMarkets(raw);
+      const hasMore = tab === 'poly' ? !!nextCursors.poly : !!nextCursors.kalshi;
       const body = document.getElementById('panel-body');
 
       if (!markets || markets.length === 0) {
@@ -467,19 +584,41 @@
         return;
       }
 
-      body.innerHTML = markets.map(m => `
+      const cards = markets.map(m => {
+        let metaValue = '';
+        if (activeSort === 'volume_week') {
+          metaValue = m.volume_week != null ? `<div class="market-volume"><span>7d vol:</span> $${formatVolume(m.volume_week)}</div>` : '';
+        } else if (activeSort === 'prediction_change') {
+          const ratio = m.volume > 0 ? ((m.volume_week ?? 0) / m.volume * 100).toFixed(1) : null;
+          metaValue = ratio != null ? `<div class="market-volume"><span>Recent activity:</span> ${ratio}%</div>` : '';
+        } else if (activeSort === 'latest') {
+          const date = m.start_time ? new Date(m.start_time * 1000).toLocaleDateString() : null;
+          metaValue = date ? `<div class="market-volume"><span>Started:</span> ${date}</div>` : '';
+        } else {
+          metaValue = m.volume != null ? `<div class="market-volume"><span>Vol:</span> $${formatVolume(m.volume)}</div>` : '';
+        }
+
+        return `
         <div class="market-card">
           <a href="${m.url}" target="_blank" rel="noopener">
             <div class="market-title">${m.title}</div>
             <div class="market-meta">
-              <span class="badge ${m.platform === 'Polymarket' ? 'badge-poly' : 'badge-kalshi'}">
-                ${m.platform}
-              </span>
-              ${m.volume != null ? `<div class="market-volume"><span>Vol:</span> $${formatVolume(m.volume)}</div>` : ''}
+              <span class="badge ${m.platform === 'Polymarket' ? 'badge-poly' : 'badge-kalshi'}">${m.platform}</span>
+              ${metaValue}
             </div>
           </a>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
+
+      const loadMoreBtn = hasMore
+        ? `<button id="load-more-btn" onclick="loadMore()" style="
+            width:100%; padding:0.6rem; margin-top:0.25rem;
+            background:#1a1a1a; border:1px solid #333; border-radius:7px;
+            color:#aaa; font-size:0.82rem; font-weight:600; cursor:pointer;
+            transition:all 0.2s;">Load more</button>`
+        : '';
+
+      body.innerHTML = cards + loadMoreBtn;
     }
 
     function formatVolume(v) {

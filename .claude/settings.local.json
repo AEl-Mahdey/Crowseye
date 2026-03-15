@@ -5,7 +5,16 @@
       "WebFetch(domain:docs.domeapi.io)",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:www.npmjs.com)",
+      "Skill(claude-api)",
+      "WebFetch(domain:abacus.ai)",
+      "WebFetch(domain:routellm-apis.abacus.ai)",
+      "Bash(curl:*)",
+      "WebFetch(domain:massive.com)",
+      "WebFetch(domain:api.massive.io)",
+      "WebFetch(domain:data.massive.com)",
+      "WebFetch(domain:massive-status.com)",
+      "Bash(git:*)"
     ]
   }
 }

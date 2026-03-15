@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>World Map — Signal</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+  <title>Signal</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -15,123 +12,371 @@
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #0f0f0f;
       color: #f0f0f0;
-      height: 100vh;
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
     }
 
     header {
-      padding: 1rem 2rem;
+      padding: 1.5rem 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid #222;
-      background: #0f0f0f;
-      z-index: 1000;
-      flex-shrink: 0;
     }
 
-    header .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: 2px; color: #00e5ff; text-decoration: none; }
+    header .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: 2px; color: #00e5ff; text-decoration: none; }
     nav a { color: #aaa; text-decoration: none; margin-left: 1.5rem; font-size: 0.9rem; transition: color 0.2s; }
     nav a:hover, nav a.active { color: #00e5ff; }
 
-    .toolbar {
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4rem 2rem 3rem;
+    }
+
+    .hero h1 { font-size: 3.2rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.75rem; text-align: center; }
+    .hero h1 span { color: #00e5ff; }
+    .hero p { font-size: 1rem; color: #666; max-width: 440px; margin-bottom: 2.5rem; line-height: 1.6; text-align: center; }
+
+    .search-wrap { width: 100%; max-width: 700px; }
+
+    .search-bar {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.6rem 1.5rem;
-      background: #111;
-      border-bottom: 1px solid #1e1e1e;
-      flex-wrap: wrap;
-      z-index: 999;
-      flex-shrink: 0;
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 0.1rem 0.1rem 0.1rem 1.2rem;
+      transition: border-color 0.2s;
     }
 
-    .toolbar label { font-size: 0.8rem; color: #888; }
+    .search-bar:focus-within { border-color: #00e5ff; }
 
-    .toolbar select {
-      background: #1a1a1a;
-      border: 1px solid #333;
-      color: #f0f0f0;
-      padding: 0.35rem 0.6rem;
-      border-radius: 5px;
-      font-size: 0.85rem;
+    #search-input {
+      flex: 1;
+      background: none;
+      border: none;
       outline: none;
+      color: #f0f0f0;
+      font-size: 1rem;
+      padding: 0.7rem 0;
     }
 
-    .toolbar select:focus { border-color: #00e5ff; }
+    #search-input::placeholder { color: #444; }
 
-    .hint {
-      margin-left: auto;
+    #search-btn {
+      background: #00e5ff;
+      color: #0f0f0f;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    #search-btn:hover { opacity: 0.85; }
+    #search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Results area ─────────────────────────────────────────── */
+    #results-area {
+      display: none;
+      width: 100%;
+      max-width: 960px;
+      margin: 2rem auto 0;
+      padding: 0 2rem 4rem;
+    }
+
+    .results-label {
       font-size: 0.78rem;
+      color: #444;
+      margin-bottom: 1.25rem;
+    }
+
+    .results-label span { color: #00e5ff; }
+
+    .results-split {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      align-items: flex-start;
+    }
+
+    .split-news     { flex: 1.1; min-width: 0; }
+    .split-insiders { flex: 0.9; min-width: 0; }
+
+    .results-card {
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .card-heading {
+      padding: 0.7rem 1.2rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #444;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .card-body { padding: 1.1rem 1.3rem; }
+
+    /* Summary */
+    .summary-body { font-size: 0.9rem; line-height: 1.75; color: #ccc; min-height: 60px; }
+    .summary-body p { margin-bottom: 0; }
+    .summary-body strong { color: #f0f0f0; }
+
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: #00e5ff;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 0.8s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* Chart */
+    .chart-wrap iframe {
+      width: 100%;
+      height: 340px;
+      border: none;
+      display: block;
+    }
+
+    .chart-ticker-label {
+      padding: 0.55rem 1.3rem;
+      font-size: 0.78rem;
+      color: #555;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .chart-ticker-label strong { color: #00e5ff; }
+
+    .chart-no-ticker {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem 1rem;
+      color: #444;
+      font-size: 0.82rem;
+      gap: 0.4rem;
+      text-align: center;
+    }
+
+    /* ── Fundamentals ────────────────────────────────────────── */
+    .fundamentals-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.85rem 1.1rem;
+    }
+
+    .stat-pill {
+      background: #1a1a1a;
+      border: 1px solid #242424;
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      min-width: 90px;
+    }
+
+    .stat-label { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+    .stat-value { font-size: 0.92rem; font-weight: 700; color: #e0e0e0; }
+    .stat-value.up   { color: #51cf66; }
+    .stat-value.down { color: #ff6b6b; }
+
+    .fundamentals-meta {
+      padding: 0.5rem 1.1rem 0.75rem;
+      font-size: 0.72rem;
       color: #444;
     }
 
-    .hint span { color: #00e5ff; }
+    /* ── News ────────────────────────────────────────────────── */
+    .news-list { padding: 0.5rem 0; }
 
-    /* Main layout */
-    .main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
+    .news-article {
+      padding: 0.65rem 1.2rem;
+      border-bottom: 1px solid #1a1a1a;
+      transition: background 0.15s;
     }
 
-    #map { flex: 1; }
+    .news-article:last-child { border-bottom: none; }
+    .news-article:hover { background: #1a1a1a; }
 
-    /* Results panel */
-    #panel {
-      width: 340px;
-      background: #111;
-      border-left: 1px solid #1e1e1e;
+    .news-article a { text-decoration: none; color: inherit; display: block; }
+    .news-title { font-size: 0.81rem; font-weight: 600; color: #ddd; line-height: 1.4; margin-bottom: 0.25rem; }
+    .news-desc  { font-size: 0.75rem; color: #666; line-height: 1.4; margin-bottom: 0.3rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .news-meta  { font-size: 0.68rem; color: #444; }
+    .news-meta span { color: #555; }
+
+    /* ── Insiders ────────────────────────────────────────────── */
+    .insider-list { padding: 0.3rem 0; }
+
+    .insider-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.65rem 1.2rem;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .insider-row:last-child { border-bottom: none; }
+
+    .insider-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .badge-buy  { background: #51cf6622; color: #51cf66; }
+    .badge-sell { background: #ff444422; color: #ff6b6b; }
+
+    .insider-info { flex: 1; min-width: 0; }
+    .insider-name { font-size: 0.8rem; font-weight: 600; color: #ddd; }
+    .insider-role { font-size: 0.7rem; color: #555; margin-bottom: 2px; }
+    .insider-detail { font-size: 0.72rem; color: #666; }
+    .insider-date { font-size: 0.68rem; color: #444; margin-top: 1px; }
+
+    .insider-link { font-size: 0.68rem; color: #00e5ff; text-decoration: none; opacity: 0.7; }
+    .insider-link:hover { opacity: 1; }
+
+    /* ── Sentiment ───────────────────────────────────────────── */
+    .sentiment-score {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 1rem 1.3rem;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .score-dial {
+      width: 70px; height: 70px;
+      border-radius: 50%;
       display: flex;
       flex-direction: column;
-      flex-shrink: 0;
-      overflow: hidden;
-      transition: width 0.3s;
-    }
-
-    #panel.collapsed { width: 0; border: none; }
-
-    .panel-header {
-      padding: 1rem 1.2rem 0.75rem;
-      border-bottom: 1px solid #1e1e1e;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.15rem;
       flex-shrink: 0;
     }
 
-    .panel-header .panel-title {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #f0f0f0;
-      margin-bottom: 2px;
-    }
+    .score-dial small { font-size: 0.6rem; font-weight: 500; opacity: 0.7; margin-top: 1px; }
+    .dial-bullish { background: #51cf6622; color: #51cf66; border: 2px solid #51cf6644; }
+    .dial-bearish { background: #ff444422; color: #ff6b6b; border: 2px solid #ff444444; }
+    .dial-neutral { background: #fcc41922; color: #fcc419; border: 2px solid #fcc41944; }
 
-    .panel-header .panel-sub {
-      font-size: 0.75rem;
-      color: #555;
-    }
+    .score-info { flex: 1; }
+    .score-label { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; text-transform: capitalize; }
+    .score-summary { font-size: 0.8rem; color: #888; line-height: 1.5; }
 
-    .panel-tabs {
+    .sentiment-breakdown {
       display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1.3rem;
       border-bottom: 1px solid #1e1e1e;
-      flex-shrink: 0;
     }
 
-    .tab-btn {
+    .breakdown-bar {
       flex: 1;
-      padding: 0.6rem;
+      background: #1a1a1a;
+      border: 1px solid #242424;
+      border-radius: 8px;
+      padding: 0.5rem 0.6rem;
+      text-align: center;
+      font-size: 0.75rem;
+    }
+
+    .breakdown-bar .bar-pct { font-size: 1.05rem; font-weight: 700; display: block; margin-bottom: 2px; }
+    .bar-bull .bar-pct { color: #51cf66; }
+    .bar-bear .bar-pct { color: #ff6b6b; }
+    .bar-neut .bar-pct { color: #fcc419; }
+    .breakdown-bar .bar-label { color: #555; }
+
+    .sentiment-themes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      padding: 0.75rem 1.3rem;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .theme-tag {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+
+    .sentiment-section-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0.6rem 1.3rem 0.3rem;
+    }
+
+    .tweets-list { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem 1.3rem 1.3rem; }
+
+    .tweet-card {
+      background: #1a1a1a;
+      border: 1px solid #242424;
+      border-radius: 8px;
+      padding: 0.7rem 0.9rem;
+      font-size: 0.8rem;
+      color: #ccc;
+      line-height: 1.5;
+    }
+
+    .tweet-meta { display: flex; gap: 0.75rem; margin-top: 0.4rem; font-size: 0.7rem; color: #555; }
+
+    /* ── Massive ─────────────────────────────────────────────── */
+    .massive-section-label { font-size: 0.72rem; font-weight: 600; color: #444; text-transform: uppercase; letter-spacing: 0.06em; padding: 1rem 1.3rem 0.4rem; }
+    .massive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.4rem; padding: 0 1.3rem 0.5rem; }
+    .massive-row { display: flex; justify-content: space-between; background: #1a1a1a; border: 1px solid #242424; border-radius: 6px; padding: 0.45rem 0.75rem; font-size: 0.8rem; }
+    .massive-key { color: #666; }
+    .massive-val { color: #e0e0e0; font-weight: 600; }
+    .massive-table-wrap { padding: 0 1.3rem 0.75rem; overflow-x: auto; }
+    .massive-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .massive-table th { text-align: left; color: #555; font-weight: 600; padding: 0.3rem 0.6rem; border-bottom: 1px solid #222; }
+    .massive-table td { padding: 0.35rem 0.6rem; color: #ccc; border-bottom: 1px solid #1a1a1a; }
+    .state-error { padding: 1rem 1.3rem; color: #e05c5c; font-size: 0.85rem; }
+
+    /* ── Markets ─────────────────────────────────────────────── */
+    .market-tabs { display: flex; border-bottom: 1px solid #1e1e1e; }
+
+    .mtab {
+      flex: 1;
+      padding: 0.65rem;
       background: none;
       border: none;
+      border-bottom: 2px solid transparent;
       color: #555;
       font-size: 0.82rem;
       font-weight: 600;
       cursor: pointer;
-      border-bottom: 2px solid transparent;
       transition: all 0.2s;
     }
 
-    .tab-btn.active { color: #00e5ff; border-bottom-color: #00e5ff; }
-    .tab-btn:hover:not(.active) { color: #aaa; }
+    .mtab.active { color: #00e5ff; border-bottom-color: #00e5ff; }
+    .mtab:hover:not(.active) { color: #aaa; }
 
     .tab-count {
       display: inline-block;
@@ -143,35 +388,65 @@
       color: #666;
     }
 
-    .tab-btn.active .tab-count { background: #00e5ff22; color: #00e5ff; }
+    .mtab.active .tab-count { background: #00e5ff22; color: #00e5ff; }
 
-    #panel-body {
+    .market-panel { display: none; padding: 1rem 1.2rem; }
+    .market-panel.active { display: block; }
+
+    .market-sort { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .market-sort label { font-size: 0.75rem; color: #555; white-space: nowrap; }
+
+    .market-sort select {
       flex: 1;
-      overflow-y: auto;
-      padding: 0.75rem;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #ccc;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
     }
 
-    #panel-body::-webkit-scrollbar { width: 5px; }
-    #panel-body::-webkit-scrollbar-track { background: #111; }
-    #panel-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    .market-sort select:focus { border-color: #00e5ff; }
+
+    .market-card {
+      background: #1a1a1a;
+      border: 1px solid #242424;
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 0.55rem;
+      transition: border-color 0.15s;
+    }
+
+    .market-card:last-child { margin-bottom: 0; }
+    .market-card:hover { border-color: #333; }
+    .market-card a { text-decoration: none; color: inherit; display: block; }
+    .market-title { font-size: 0.83rem; font-weight: 600; color: #e0e0e0; line-height: 1.4; margin-bottom: 0.45rem; }
+    .market-meta { display: flex; align-items: center; gap: 0.6rem; }
+
+    .badge { font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+    .badge-poly   { background: #00e5ff22; color: #00e5ff; }
+    .badge-kalshi { background: #51cf6622; color: #51cf66; }
+
+    .market-volume { font-size: 0.72rem; color: #555; margin-left: auto; }
+    .market-volume span { color: #888; }
 
     /* States */
-    .state-idle, .state-loading, .state-empty {
+    .state-loading, .state-empty {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 200px;
+      padding: 2rem 1rem;
       color: #444;
       font-size: 0.85rem;
-      text-align: center;
       gap: 0.5rem;
+      text-align: center;
     }
 
-    .state-idle .icon, .state-empty .icon { font-size: 2rem; }
-
     .spinner {
-      width: 28px; height: 28px;
+      width: 24px; height: 24px;
       border: 3px solid #1e1e1e;
       border-top-color: #00e5ff;
       border-radius: 50%;
@@ -180,109 +455,40 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Market cards */
-    .market-card {
-      background: #161616;
-      border: 1px solid #222;
-      border-radius: 8px;
-      padding: 0.75rem 0.9rem;
-      margin-bottom: 0.6rem;
-      transition: border-color 0.15s;
+    /* Features */
+    .features {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      padding: 3rem 2rem;
+      flex-wrap: wrap;
+      border-top: 1px solid #1a1a1a;
+      margin-top: auto;
     }
 
-    .market-card:hover { border-color: #333; }
-
-    .market-card a {
+    .card {
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 1.5rem;
+      width: 200px;
+      text-align: center;
       text-decoration: none;
       color: inherit;
-      display: block;
+      transition: border-color 0.2s;
     }
 
-    .market-title {
-      font-size: 0.83rem;
-      font-weight: 600;
-      color: #e0e0e0;
-      line-height: 1.4;
-      margin-bottom: 0.5rem;
+    .card:hover { border-color: #333; }
+    .card .icon { font-size: 2rem; margin-bottom: 0.75rem; }
+    .card h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+    .card p { font-size: 0.82rem; color: #666; line-height: 1.5; }
+
+    footer { text-align: center; padding: 1.5rem; color: #444; font-size: 0.8rem; border-top: 1px solid #1a1a1a; }
+
+    @media (max-width: 700px) {
+      .results-split { flex-direction: column; }
+      .split-news, .split-insiders { flex: unset; width: 100%; }
     }
-
-    .market-meta {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      flex-wrap: wrap;
-    }
-
-    .badge {
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 4px;
-      letter-spacing: 0.5px;
-    }
-
-    .badge-poly { background: #00e5ff22; color: #00e5ff; }
-    .badge-kalshi { background: #51cf6622; color: #51cf66; }
-
-    .market-volume {
-      font-size: 0.72rem;
-      color: #555;
-      margin-left: auto;
-    }
-
-    .market-volume span { color: #888; }
-
-    .error-box {
-      background: #ff444411;
-      border: 1px solid #ff444433;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.8rem;
-      color: #ff8888;
-      margin-bottom: 0.5rem;
-    }
-
-    /* Map styles */
-    .leaflet-popup-content-wrapper {
-      background: #161616;
-      color: #f0f0f0;
-      border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
-
-    .leaflet-popup-tip { background: #161616; }
-    .leaflet-popup-content { margin: 10px 14px; font-size: 0.85rem; }
-
-    .leaflet-control-zoom a {
-      background: #161616 !important;
-      color: #ccc !important;
-      border-color: #2a2a2a !important;
-    }
-
-    .leaflet-control-zoom a:hover { background: #222 !important; color: #00e5ff !important; }
-    .leaflet-control-attribution { background: #0f0f0faa !important; color: #444 !important; }
-    .leaflet-control-attribution a { color: #555 !important; }
-
-    /* Coordinate bar */
-    #coord-bar {
-      position: absolute;
-      bottom: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #111c;
-      border: 1px solid #222;
-      border-radius: 6px;
-      padding: 4px 14px;
-      font-size: 0.75rem;
-      color: #555;
-      z-index: 900;
-      pointer-events: none;
-      backdrop-filter: blur(6px);
-      white-space: nowrap;
-    }
-
-    #coord-bar span { color: #00e5ff; }
   </style>
 </head>
 <body>
@@ -290,200 +496,569 @@
   <header>
     <a href="/" class="logo">SIGNAL</a>
     <nav>
-      <a href="/" class="active">Map</a>
+      <a href="/" class="active">Home</a>
+      <a href="/map">Map</a>
     </nav>
   </header>
 
-  <div class="toolbar">
-    <label>Style:</label>
-    <select id="layer-select">
-      <option value="dark">Dark</option>
-      <option value="streets">Streets</option>
-      <option value="satellite">Satellite</option>
-      <option value="topo">Topo</option>
-    </select>
-    <div class="hint">Click a country to see <span>prediction markets</span></div>
-  </div>
+  <section class="hero">
+    <h1>Research before <span>you invest</span></h1>
+    <p>AI-powered due diligence on stocks, companies, and sectors.</p>
 
-  <div class="main">
-    <div id="map"></div>
-
-    <!-- Side panel -->
-    <div id="panel">
-      <div class="panel-header">
-        <div class="panel-title" id="panel-country">Prediction Markets</div>
-        <div class="panel-sub" id="panel-sub">Click any country on the map</div>
+    <div class="search-wrap">
+      <div class="search-bar">
+        <input type="text" id="search-input" placeholder="e.g. Apple, semiconductor sector, rising interest rates..." autocomplete="off" />
+        <button id="search-btn" onclick="runSearch()">Search</button>
       </div>
-      <div class="panel-tabs">
-        <button class="tab-btn active" id="tab-poly" onclick="switchTab('poly')">
+    </div>
+  </section>
+
+  <div id="results-area">
+    <div class="results-label">Results for: <span id="result-query-text"></span></div>
+
+    <!-- Row 1: Summary -->
+    <div class="results-card">
+      <div class="card-heading">Summary</div>
+      <div class="card-body">
+        <div class="summary-body" id="summary-body"><span class="cursor"></span></div>
+      </div>
+    </div>
+
+    <!-- Row 2: Chart -->
+    <div class="results-card">
+      <div class="card-heading">Chart</div>
+      <div id="chart-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Row 3: Financial Statements, Dividends, Splits (hidden until ticker resolved) -->
+    <div class="results-card" id="massive-card" style="display:none">
+      <div class="card-heading">Financial Statements &amp; Corporate Actions</div>
+      <div id="massive-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Row 4: Fundamentals (hidden until ticker resolved) -->
+    <div class="results-card" id="fundamentals-card" style="display:none">
+      <div class="card-heading">Fundamentals</div>
+      <div id="fundamentals-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Row 3: News + Insider Trades -->
+    <div class="results-split">
+      <div class="results-card split-news">
+        <div class="card-heading">News</div>
+        <div id="news-body"><div class="state-loading"><div class="spinner"></div></div></div>
+      </div>
+
+      <div class="results-card split-insiders">
+        <div class="card-heading">Insider Trades</div>
+        <div id="insiders-body"><div class="state-loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Row 4: Sentiment -->
+    <div class="results-card">
+      <div class="card-heading">Sentiment</div>
+      <div id="sentiment-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Row 5: Prediction markets -->
+    <div class="results-card">
+      <div class="market-tabs">
+        <button class="mtab active" id="mtab-poly" onclick="switchMarketTab('poly')">
           Polymarket <span class="tab-count" id="count-poly">—</span>
         </button>
-        <button class="tab-btn" id="tab-kalshi" onclick="switchTab('kalshi')">
+        <button class="mtab" id="mtab-kalshi" onclick="switchMarketTab('kalshi')">
           Kalshi <span class="tab-count" id="count-kalshi">—</span>
         </button>
       </div>
-      <div id="panel-body">
-        <div class="state-idle">
-          <div class="icon">🌍</div>
-          <div>Select a country to explore markets</div>
+
+      <div class="market-panel active" id="mpanel-poly">
+        <div class="market-sort">
+          <label>Sort:</label>
+          <select id="sort-poly" onchange="applySort('poly')">
+            <option value="volume">Highest volume</option>
+            <option value="volume_week">Biggest volume change</option>
+            <option value="prediction_change">Biggest prediction change</option>
+            <option value="latest">Latest markets</option>
+          </select>
         </div>
+        <div id="poly-body"><div class="state-loading"><div class="spinner"></div></div></div>
+      </div>
+
+      <div class="market-panel" id="mpanel-kalshi">
+        <div class="market-sort">
+          <label>Sort:</label>
+          <select id="sort-kalshi" onchange="applySort('kalshi')">
+            <option value="volume">Highest volume</option>
+            <option value="volume_week">Biggest volume change</option>
+            <option value="prediction_change">Biggest prediction change</option>
+            <option value="latest">Latest markets</option>
+          </select>
+        </div>
+        <div id="kalshi-body"><div class="state-loading"><div class="spinner"></div></div></div>
       </div>
     </div>
   </div>
 
-  <div id="coord-bar">Lat: <span id="lat">—</span> &nbsp; Lng: <span id="lng">—</span></div>
+  <section class="features">
+    <a href="/map" class="card">
+      <div class="icon">🌍</div>
+      <h3>World Map</h3>
+      <p>Click any country to explore its prediction markets.</p>
+    </a>
+    <div class="card">
+      <div class="icon">📊</div>
+      <h3>Polymarket</h3>
+      <p>Real-time markets from the world's largest prediction platform.</p>
+    </div>
+    <div class="card">
+      <div class="icon">📈</div>
+      <h3>Kalshi</h3>
+      <p>Regulated US prediction markets across politics, economy and more.</p>
+    </div>
+  </section>
+
+  <footer>&copy; 2026 Signal Project. All rights reserved.</footer>
 
   <script>
-    // ── Tile layers ──────────────────────────────────────────────
-    const tiles = {
-      dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
-      }),
-      streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
-      }),
-      satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri', maxZoom: 19
-      }),
-      topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenTopoMap', maxZoom: 17
-      })
-    };
+    const input       = document.getElementById('search-input');
+    const btn         = document.getElementById('search-btn');
+    const resultsArea = document.getElementById('results-area');
 
-    const map = L.map('map', { center: [20, 0], zoom: 2, layers: [tiles.dark] });
-    let currentTile = 'dark';
-    let geojsonLayer = null;
-    let selectedLayer = null;
-    let currentData = { polymarkets: [], kalshiMarkets: [] };
-    let activeTab = 'poly';
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
 
-    document.getElementById('layer-select').addEventListener('change', function () {
-      map.removeLayer(tiles[currentTile]);
-      currentTile = this.value;
-      map.addLayer(tiles[currentTile]);
-    });
-
-    // Coordinate display
-    map.on('mousemove', e => {
-      document.getElementById('lat').textContent = e.latlng.lat.toFixed(4);
-      document.getElementById('lng').textContent = e.latlng.lng.toFixed(4);
-    });
-
-    // ── GeoJSON country layer ────────────────────────────────────
-    const countryStyle = {
-      fillColor: '#00e5ff',
-      fillOpacity: 0,
-      color: '#00e5ff',
-      weight: 0.4,
-      opacity: 0.25
-    };
-
-    const hoverStyle = { fillOpacity: 0.12, weight: 1, opacity: 0.6 };
-    const selectedStyle = { fillOpacity: 0.2, weight: 1.5, opacity: 0.8 };
-
-    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-      .then(r => r.json())
-      .then(data => {
-        geojsonLayer = L.geoJSON(data, {
-          style: countryStyle,
-          onEachFeature: (feature, layer) => {
-            layer.on({
-              mouseover(e) {
-                if (layer !== selectedLayer) layer.setStyle(hoverStyle);
-                layer.bringToFront();
-              },
-              mouseout(e) {
-                if (layer !== selectedLayer) layer.setStyle(countryStyle);
-              },
-              click(e) {
-                // Reset previous selection
-                if (selectedLayer && selectedLayer !== layer) {
-                  selectedLayer.setStyle(countryStyle);
-                }
-                selectedLayer = layer;
-                layer.setStyle(selectedStyle);
-
-                const country = feature.properties.ADMIN || feature.properties.name;
-                loadMarkets(country);
-                map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 6 });
-              }
-            });
-          }
-        }).addTo(map);
+    function switchMarketTab(tab) {
+      ['poly', 'kalshi'].forEach(t => {
+        document.getElementById(`mtab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`mpanel-${t}`).classList.toggle('active', t === tab);
       });
+    }
 
-    // ── Load markets from backend ────────────────────────────────
-    async function loadMarkets(country) {
-      document.getElementById('panel-country').textContent = country;
-      document.getElementById('panel-sub').textContent = 'Fetching markets…';
-      document.getElementById('panel-body').innerHTML = `
-        <div class="state-loading"><div class="spinner"></div></div>`;
-      document.getElementById('count-poly').textContent = '…';
-      document.getElementById('count-kalshi').textContent = '…';
+    async function runSearch() {
+      const query = input.value.trim();
+      if (!query) return;
 
+      btn.disabled = true;
+      btn.textContent = 'Searching…';
+
+      resultsArea.style.display = 'block';
+      document.getElementById('result-query-text').textContent = query;
+      setTimeout(() => resultsArea.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+      // Reset
+      marketsData = { poly: [], kalshi: [] };
+      switchMarketTab('poly');
+      document.getElementById('summary-body').innerHTML     = '<span class="cursor"></span>';
+      document.getElementById('chart-body').innerHTML       = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('fundamentals-card').style.display = 'none';
+      document.getElementById('massive-card').style.display = 'none';
+      document.getElementById('massive-body').innerHTML     = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('news-body').innerHTML        = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('insiders-body').innerHTML    = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('sentiment-body').innerHTML   = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('poly-body').innerHTML        = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('kalshi-body').innerHTML      = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('count-poly').textContent     = '—';
+      document.getElementById('count-kalshi').textContent   = '—';
+
+      streamSummary(query);
+      fetchTicker(query);   // chains fetchFundamentals + fetchInsiders
+      fetchNews(query);
+      fetchSentiment(query);
+      fetchMarkets(query);
+    }
+
+    // ── Summary ──────────────────────────────────────────────────
+    async function streamSummary(query) {
+      const summaryBody = document.getElementById('summary-body');
+      let raw = '';
       try {
-        const res = await fetch(`/api/markets/${encodeURIComponent(country)}`);
-        const data = await res.json();
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        if (data.error) throw new Error(data.error);
-
-        currentData = data;
-        document.getElementById('count-poly').textContent = data.polymarkets.length;
-        document.getElementById('count-kalshi').textContent = data.kalshiMarkets.length;
-
-        const total = data.polymarkets.length + data.kalshiMarkets.length;
-        document.getElementById('panel-sub').textContent =
-          total > 0 ? `${total} open market${total !== 1 ? 's' : ''} found` : 'No markets found for this country';
-
-        renderTab(activeTab);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') break;
+            const { text, error } = JSON.parse(payload);
+            if (error) throw new Error(error);
+            if (text) {
+              raw += text;
+              summaryBody.innerHTML = marked.parse(raw) + '<span class="cursor"></span>';
+            }
+          }
+        }
+        summaryBody.innerHTML = marked.parse(raw);
       } catch (err) {
-        document.getElementById('panel-sub').textContent = 'Error loading markets';
-        document.getElementById('panel-body').innerHTML = `
-          <div class="error-box">⚠ ${err.message}</div>`;
+        summaryBody.innerHTML = `<span style="color:#ff6b6b">Error: ${err.message}</span>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Search';
       }
     }
 
-    // ── Tab switching ────────────────────────────────────────────
-    function switchTab(tab) {
-      activeTab = tab;
-      document.getElementById('tab-poly').classList.toggle('active', tab === 'poly');
-      document.getElementById('tab-kalshi').classList.toggle('active', tab === 'kalshi');
-      renderTab(tab);
+    // ── Chart + Fundamentals + Insiders (ticker-gated) ───────────
+    async function fetchTicker(query) {
+      try {
+        const res  = await fetch(`/api/ticker/${encodeURIComponent(query)}`);
+        const data = await res.json();
+        document.getElementById('chart-body').innerHTML = renderChart(data.ticker, data.exchange, data.name);
+
+        if (data.ticker) {
+          document.getElementById('fundamentals-card').style.display = 'block';
+          document.getElementById('massive-card').style.display = 'block';
+          fetchFundamentals(data.ticker);
+          fetchInsiders(data.ticker);
+          fetchMassive(data.ticker);
+        } else {
+          document.getElementById('insiders-body').innerHTML =
+            '<div class="state-empty">No stock identified — enter a specific ticker.</div>';
+        }
+      } catch (err) {
+        document.getElementById('chart-body').innerHTML =
+          `<div class="chart-no-ticker">⚠ ${err.message}</div>`;
+        document.getElementById('insiders-body').innerHTML =
+          '<div class="state-empty">Could not resolve ticker.</div>';
+      }
     }
 
-    window.switchTab = switchTab;
-
-    function renderTab(tab) {
-      const markets = tab === 'poly' ? currentData.polymarkets : currentData.kalshiMarkets;
-      const body = document.getElementById('panel-body');
-
-      if (!markets || markets.length === 0) {
-        body.innerHTML = `
-          <div class="state-empty">
-            <div class="icon">${tab === 'poly' ? '📊' : '📈'}</div>
-            <div>No ${tab === 'poly' ? 'Polymarket' : 'Kalshi'} markets found for this country</div>
-          </div>`;
-        return;
+    function renderChart(ticker, exchange, name) {
+      if (!ticker) {
+        return `<div class="chart-no-ticker">
+          <div style="font-size:1.5rem">📉</div>
+          <div>No publicly traded security found.</div>
+          <div style="font-size:0.75rem;color:#333;margin-top:0.25rem">Try a specific stock ticker.</div>
+        </div>`;
       }
+      const symbol = exchange ? `${exchange}:${ticker}` : ticker;
+      const src = `https://www.tradingview.com/widgetembed/?frameElementId=tv-chart&symbol=${encodeURIComponent(symbol)}&interval=D&hidesidetoolbar=1&saveimage=0&toolbarbg=0f0f0f&studies=[]&theme=dark&style=1&timezone=exchange&withdateranges=1&showpopupbutton=1&allow_symbol_change=0`;
+      return `
+        <div class="chart-ticker-label">${name ?? ticker} &middot; <strong>${ticker}</strong> &middot; ${exchange ?? ''}</div>
+        <iframe src="${src}" allowtransparency="true" frameborder="0" scrolling="no" allowfullscreen style="width:100%;height:340px;border:none;display:block"></iframe>`;
+    }
 
-      body.innerHTML = markets.map(m => `
-        <div class="market-card">
-          <a href="${m.url}" target="_blank" rel="noopener">
-            <div class="market-title">${m.title}</div>
-            <div class="market-meta">
-              <span class="badge ${m.platform === 'Polymarket' ? 'badge-poly' : 'badge-kalshi'}">
-                ${m.platform}
-              </span>
-              ${m.volume != null ? `<div class="market-volume"><span>Vol:</span> $${formatVolume(m.volume)}</div>` : ''}
+    async function fetchFundamentals(ticker) {
+      const body = document.getElementById('fundamentals-body');
+      try {
+        const res  = await fetch(`/api/fundamentals/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        body.innerHTML = renderFundamentals(data);
+      } catch (err) {
+        body.innerHTML = `<div class="state-empty">⚠ ${err.message}</div>`;
+      }
+    }
+
+    function renderFundamentals(d) {
+      const changeUp  = d.change >= 0;
+      const changeCls = changeUp ? 'up' : 'down';
+      const changeStr = d.change != null
+        ? `${changeUp ? '+' : ''}${Number(d.change).toFixed(2)} (${Number(d.changePct).toFixed(2)}%)`
+        : '—';
+
+      const fmt = (v, prefix = '', suffix = '', decimals = 2) =>
+        v != null ? `${prefix}${Number(v).toFixed(decimals)}${suffix}` : '—';
+
+      const fmtCap = v => {
+        if (v == null) return '—';
+        if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+        if (v >= 1e9)  return `$${(v / 1e9).toFixed(2)}B`;
+        if (v >= 1e6)  return `$${(v / 1e6).toFixed(2)}M`;
+        return `$${v}`;
+      };
+
+      const stats = [
+        { label: 'Price',       value: fmt(d.price, '$'),              cls: '' },
+        { label: 'Change',      value: changeStr,                       cls: changeCls },
+        { label: 'Market Cap',  value: fmtCap(d.marketCap),            cls: '' },
+        { label: 'P/E (TTM)',   value: fmt(d.pe, '', 'x'),             cls: '' },
+        { label: 'Net Margin',  value: fmt(d.netMargin != null ? d.netMargin * 100 : null, '', '%'), cls: '' },
+        { label: 'Debt/Equity', value: fmt(d.debtToEquity, '', 'x'),   cls: '' },
+        { label: 'ROE',         value: fmt(d.roe != null ? d.roe * 100 : null, '', '%'),              cls: '' },
+        { label: '52w Range',   value: d.range52w ?? '—',              cls: '' },
+      ];
+
+      const pillsHtml = stats.map(s => `
+        <div class="stat-pill">
+          <div class="stat-label">${s.label}</div>
+          <div class="stat-value ${s.cls}">${s.value}</div>
+        </div>`).join('');
+
+      return `
+        <div class="fundamentals-grid">${pillsHtml}</div>
+        ${d.sector ? `<div class="fundamentals-meta">${d.sector}${d.industry ? ' · ' + d.industry : ''}</div>` : ''}`;
+    }
+
+    // ── Insiders ─────────────────────────────────────────────────
+    async function fetchInsiders(ticker) {
+      const body = document.getElementById('insiders-body');
+      try {
+        const res  = await fetch(`/api/insiders/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        body.innerHTML = renderInsiders(data.insiders);
+      } catch (err) {
+        body.innerHTML = `<div class="state-empty">⚠ ${err.message}</div>`;
+      }
+    }
+
+    function renderInsiders(insiders) {
+      if (!insiders.length) {
+        return `<div class="state-empty">No recent open-market insider trades found.</div>`;
+      }
+      return `<div class="insider-list">${insiders.map(t => `
+        <div class="insider-row">
+          <span class="insider-badge ${t.type === 'Buy' ? 'badge-buy' : 'badge-sell'}">${t.type}</span>
+          <div class="insider-info">
+            <div class="insider-name">${t.name}</div>
+            <div class="insider-role">${t.role}</div>
+            <div class="insider-detail">
+              ${t.shares ? Number(t.shares).toLocaleString() + ' shares' : ''}
+              ${t.price ? ' @ $' + Number(t.price).toFixed(2) : ''}
+            </div>
+            <div class="insider-date">${t.date}</div>
+          </div>
+          <a class="insider-link" href="${t.url}" target="_blank" rel="noopener">SEC ↗</a>
+        </div>`).join('')}</div>`;
+    }
+
+    // ── News ─────────────────────────────────────────────────────
+    async function fetchNews(query) {
+      const body = document.getElementById('news-body');
+      try {
+        const res  = await fetch(`/api/news/${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        body.innerHTML = renderNews(data.articles);
+      } catch (err) {
+        body.innerHTML = `<div class="state-empty">⚠ ${err.message}</div>`;
+      }
+    }
+
+    function renderNews(articles) {
+      if (!articles.length) return `<div class="state-empty">No recent news found.</div>`;
+      return `<div class="news-list">${articles.map(a => `
+        <div class="news-article">
+          <a href="${a.url}" target="_blank" rel="noopener">
+            <div class="news-title">${a.title}</div>
+            ${a.description ? `<div class="news-desc">${a.description}</div>` : ''}
+            <div class="news-meta">
+              <span>${a.source ?? ''}</span>
+              ${a.publishedAt ? ' · ' + new Date(a.publishedAt).toLocaleDateString() : ''}
             </div>
           </a>
-        </div>
-      `).join('');
+        </div>`).join('')}</div>`;
     }
 
-    function formatVolume(v) {
+    // ── Sentiment ─────────────────────────────────────────────────
+    async function fetchSentiment(query) {
+      const body = document.getElementById('sentiment-body');
+      try {
+        const res  = await fetch(`/api/sentiment/${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        body.innerHTML = renderSentiment(data);
+      } catch (err) {
+        body.innerHTML = `<div class="state-empty">⚠ ${err.message}</div>`;
+      }
+    }
+
+    function renderSentiment({ sentiment, articles }) {
+      if (!sentiment) return `<div class="state-empty">No sentiment data available.</div>`;
+      const s = sentiment;
+      const overall   = s.overall ?? 'neutral';
+      const dialClass = overall === 'bullish' ? 'dial-bullish' : overall === 'bearish' ? 'dial-bearish' : 'dial-neutral';
+      const scoreVal  = s.score >= 0 ? `+${s.score}` : `${s.score}`;
+      const b = s.breakdown ?? {};
+
+      const themesHtml = (s.themes ?? []).map(t => `<span class="theme-tag">${t}</span>`).join('');
+      const articlesHtml = (articles ?? []).map(a => `
+        <div class="tweet-card">
+          <a href="${a.url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${a.title}</a>
+          <div class="tweet-meta">
+            ${a.source ? `<span>${a.source}</span>` : ''}
+            ${a.publishedAt ? `<span>${new Date(a.publishedAt).toLocaleDateString()}</span>` : ''}
+          </div>
+        </div>`).join('');
+
+      return `
+        <div class="sentiment-score">
+          <div class="score-dial ${dialClass}">${scoreVal}<small>/ 100</small></div>
+          <div class="score-info">
+            <div class="score-label">${overall}</div>
+            <div class="score-summary">${s.summary ?? ''}</div>
+          </div>
+        </div>
+        <div class="sentiment-breakdown">
+          <div class="breakdown-bar bar-bull"><span class="bar-pct">${b.bullish ?? 0}%</span><span class="bar-label">Bullish</span></div>
+          <div class="breakdown-bar bar-neut"><span class="bar-pct">${b.neutral ?? 0}%</span><span class="bar-label">Neutral</span></div>
+          <div class="breakdown-bar bar-bear"><span class="bar-pct">${b.bearish ?? 0}%</span><span class="bar-label">Bearish</span></div>
+        </div>
+        ${themesHtml ? `<div class="sentiment-themes">${themesHtml}</div>` : ''}
+        ${articlesHtml ? `
+          <div class="sentiment-section-label">Articles analysed (${articles.length})</div>
+          <div class="tweets-list">${articlesHtml}</div>` : ''}`;
+    }
+
+    // ── Massive ───────────────────────────────────────────────────
+    async function fetchMassive(ticker) {
+      const body = document.getElementById('massive-body');
+      try {
+        const res  = await fetch(`/api/massive/${encodeURIComponent(ticker)}`);
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        body.innerHTML = renderMassive(data);
+      } catch (err) {
+        body.innerHTML = `<div class="state-error">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    function fmt(n) {
+      if (n === null || n === undefined) return '—';
+      const abs = Math.abs(n);
+      const sign = n < 0 ? '-' : '';
+      if (abs >= 1e12) return sign + (abs / 1e12).toFixed(2) + 'T';
+      if (abs >= 1e9)  return sign + (abs / 1e9).toFixed(2) + 'B';
+      if (abs >= 1e6)  return sign + (abs / 1e6).toFixed(2) + 'M';
+      return sign + abs.toLocaleString();
+    }
+
+    function renderMassive({ financials, dividends, splits }) {
+      let html = '';
+
+      if (financials) {
+        const rows = [
+          ['Revenue',           fmt(financials.revenues)],
+          ['Gross Profit',      fmt(financials.grossProfit)],
+          ['Operating Income',  fmt(financials.operatingIncome)],
+          ['Net Income',        fmt(financials.netIncome)],
+          ['Diluted EPS',       financials.eps != null ? `$${financials.eps.toFixed(2)}` : '—'],
+          ['Total Assets',      fmt(financials.totalAssets)],
+          ['Total Liabilities', fmt(financials.totalLiabilities)],
+          ['Equity',            fmt(financials.equity)],
+          ['Long-term Debt',    fmt(financials.longTermDebt)],
+          ['Operating Cash Flow', fmt(financials.operatingCashFlow)],
+        ];
+        html += `<div class="massive-section-label">Income &amp; Balance Sheet (TTM)</div>
+        <div class="massive-grid">${rows.map(([k, v]) => `<div class="massive-row"><span class="massive-key">${k}</span><span class="massive-val">${v}</span></div>`).join('')}</div>`;
+      }
+
+      if (dividends.length) {
+        html += `<div class="massive-section-label">Dividend History</div>
+        <div class="massive-table-wrap"><table class="massive-table">
+          <thead><tr><th>Ex-Date</th><th>Pay Date</th><th>Amount</th><th>Freq/yr</th></tr></thead>
+          <tbody>${dividends.map(d => `<tr>
+            <td>${d.exDate ?? '—'}</td>
+            <td>${d.payDate ?? '—'}</td>
+            <td>$${d.amount?.toFixed(4) ?? '—'}</td>
+            <td>${d.frequency ?? '—'}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`;
+      }
+
+      if (splits.length) {
+        html += `<div class="massive-section-label">Stock Splits</div>
+        <div class="massive-table-wrap"><table class="massive-table">
+          <thead><tr><th>Date</th><th>Ratio</th></tr></thead>
+          <tbody>${splits.map(s => `<tr>
+            <td>${s.date}</td>
+            <td>${s.from}:${s.to}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`;
+      }
+
+      return html || '<div class="state-empty">No data available.</div>';
+    }
+
+    // ── Markets ──────────────────────────────────────────────────
+    let marketsData = { poly: [], kalshi: [] };
+
+    async function fetchMarkets(query) {
+      try {
+        const res  = await fetch(`/api/search-markets?q=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        marketsData.poly   = data.polymarkets;
+        marketsData.kalshi = data.kalshiMarkets;
+
+        document.getElementById('count-poly').textContent   = data.polymarkets.length;
+        document.getElementById('count-kalshi').textContent = data.kalshiMarkets.length;
+        document.getElementById('sort-poly').value   = 'volume';
+        document.getElementById('sort-kalshi').value = 'volume';
+        document.getElementById('poly-body').innerHTML   = renderMarkets(data.polymarkets, 'poly', 'volume');
+        document.getElementById('kalshi-body').innerHTML = renderMarkets(data.kalshiMarkets, 'kalshi', 'volume');
+      } catch (err) {
+        const msg = `<div class="state-empty">⚠ ${err.message}</div>`;
+        document.getElementById('poly-body').innerHTML   = msg;
+        document.getElementById('kalshi-body').innerHTML = msg;
+      }
+    }
+
+    function applySort(platform) {
+      const sort   = document.getElementById(`sort-${platform}`).value;
+      const sorted = sortMarkets(marketsData[platform], sort);
+      document.getElementById(`${platform}-body`).innerHTML = renderMarkets(sorted, platform, sort);
+    }
+
+    function sortMarkets(markets, sort) {
+      const s = [...markets];
+      switch (sort) {
+        case 'volume_week':       return s.sort((a, b) => (b.volume_week ?? 0) - (a.volume_week ?? 0));
+        case 'prediction_change': return s.sort((a, b) => {
+          const rA = a.volume > 0 ? (a.volume_week ?? 0) / a.volume : 0;
+          const rB = b.volume > 0 ? (b.volume_week ?? 0) / b.volume : 0;
+          return rB - rA;
+        });
+        case 'latest': return s.sort((a, b) => (b.start_time ?? 0) - (a.start_time ?? 0));
+        default:       return s.sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0));
+      }
+    }
+
+    function renderMarkets(markets, platform, sort = 'volume') {
+      if (!markets.length) {
+        return `<div class="state-empty">No ${platform === 'poly' ? 'Polymarket' : 'Kalshi'} markets found.</div>`;
+      }
+      return markets.map(m => {
+        let meta = '';
+        if (sort === 'volume_week') {
+          meta = m.volume_week != null ? `<div class="market-volume"><span>7d vol:</span> $${fmtVol(m.volume_week)}</div>` : '';
+        } else if (sort === 'prediction_change') {
+          const ratio = m.volume > 0 ? ((m.volume_week ?? 0) / m.volume * 100).toFixed(1) : null;
+          meta = ratio != null ? `<div class="market-volume"><span>Recent activity:</span> ${ratio}%</div>` : '';
+        } else if (sort === 'latest') {
+          const date = m.start_time ? new Date(m.start_time * 1000).toLocaleDateString() : null;
+          meta = date ? `<div class="market-volume"><span>Started:</span> ${date}</div>` : '';
+        } else {
+          meta = m.volume != null ? `<div class="market-volume"><span>Vol:</span> $${fmtVol(m.volume)}</div>` : '';
+        }
+        return `
+          <div class="market-card">
+            <a href="${m.url}" target="_blank" rel="noopener">
+              <div class="market-title">${m.title}</div>
+              <div class="market-meta">
+                <span class="badge ${platform === 'poly' ? 'badge-poly' : 'badge-kalshi'}">${m.platform}</span>
+                ${meta}
+              </div>
+            </a>
+          </div>`;
+      }).join('');
+    }
+
+    function fmtVol(v) {
       if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
-      if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+      if (v >= 1_000)     return (v / 1_000).toFixed(1) + 'K';
       return Number(v).toFixed(0);
     }
   </script>
