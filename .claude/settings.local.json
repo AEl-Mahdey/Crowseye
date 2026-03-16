@@ -14,7 +14,11 @@
       "WebFetch(domain:api.massive.io)",
       "WebFetch(domain:data.massive.com)",
       "WebFetch(domain:massive-status.com)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "WebFetch(domain:site.financialmodelingprep.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:startanant.com)",
+      "Bash(node:*)"
     ]
   }
 }

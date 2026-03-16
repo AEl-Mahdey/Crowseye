@@ -454,6 +454,88 @@ app.get('/api/insiders/:ticker', async (req, res) => {
   }
 });
 
+// ── FMP — company profile ─────────────────────────────────────
+app.get('/api/profile/:ticker', async (req, res) => {
+  const { ticker } = req.params;
+  const key = process.env.FMP_API_KEY;
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/stable/profile?symbol=${ticker}&apikey=${key}`);
+    const data = await r.json();
+    const p = Array.isArray(data) ? data[0] : null;
+    if (!p) return res.status(404).json({ error: 'No profile found' });
+    res.json({
+      ticker:      p.symbol,
+      name:        p.companyName,
+      exchange:    p.exchange,
+      price:       p.price,
+      change:      p.change,
+      changePct:   p.changePercentage,
+      marketCap:   p.marketCap,
+      sector:      p.sector,
+      industry:    p.industry,
+      ceo:         p.ceo,
+      employees:   p.fullTimeEmployees,
+      description: p.description,
+      image:       p.image,
+      website:     p.website,
+      ipoDate:     p.ipoDate,
+      country:     p.country,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── FMP — historical price chart data ────────────────────────
+app.get('/api/chart/:ticker', async (req, res) => {
+  const { ticker } = req.params;
+  const key = process.env.FMP_API_KEY;
+  try {
+    const r = await fetch(
+      `https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=${ticker}&apikey=${key}`
+    );
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(404).json({ error: 'No price data found' });
+    }
+    // Return newest-first, trimmed to 1 year
+    const candles = data.slice(0, 365).map(d => ({
+      time:  d.date,
+      open:  d.open,
+      high:  d.high,
+      low:   d.low,
+      close: d.close,
+    }));
+    res.json({ ticker, candles });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── FMP — market movers ──────────────────────────────────────
+app.get('/api/movers', async (req, res) => {
+  const key = process.env.FMP_API_KEY;
+  try {
+    const [gainRes, loseRes] = await Promise.all([
+      fetch(`https://financialmodelingprep.com/stable/biggest-gainers?apikey=${key}`),
+      fetch(`https://financialmodelingprep.com/stable/biggest-losers?apikey=${key}`),
+    ]);
+    const [gainData, loseData] = await Promise.all([gainRes.json(), loseRes.json()]);
+
+    const pick = (arr) => (Array.isArray(arr) ? arr : []).slice(0, 10).map(s => ({
+      symbol:  s.symbol,
+      name:    s.name,
+      price:   s.price,
+      change:  s.change,
+      changePct: s.changesPercentage,
+    }));
+
+    res.json({ gainers: pick(gainData), losers: pick(loseData) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Massive — dividends, splits, financials ──────────────────
 app.get('/api/massive/:ticker', async (req, res) => {
   const { ticker } = req.params;

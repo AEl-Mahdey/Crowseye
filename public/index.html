@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Signal</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -82,6 +83,82 @@
     #search-btn:hover { opacity: 0.85; }
     #search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    /* ── Profile card ─────────────────────────────────────────── */
+    .profile-inner { display: flex; align-items: flex-start; gap: 1.2rem; padding: 1.1rem 1.3rem; }
+    .profile-logo { width: 52px; height: 52px; border-radius: 8px; object-fit: contain; background: #1a1a1a; border: 1px solid #242424; flex-shrink: 0; }
+    .profile-logo-placeholder { width: 52px; height: 52px; border-radius: 8px; background: #1a1a1a; border: 1px solid #242424; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
+    .profile-main { flex: 1; min-width: 0; }
+    .profile-name { font-size: 1.1rem; font-weight: 700; color: #f0f0f0; margin-bottom: 0.15rem; }
+    .profile-ticker-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .profile-ticker { font-size: 0.78rem; color: #00e5ff; font-weight: 700; letter-spacing: 0.5px; }
+    .profile-exchange { font-size: 0.72rem; color: #444; }
+    .profile-price-row { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.6rem; }
+    .profile-price { font-size: 1.4rem; font-weight: 800; color: #f0f0f0; }
+    .profile-change { font-size: 0.85rem; font-weight: 600; }
+    .profile-change.up { color: #2ecc71; } .profile-change.down { color: #e05c5c; }
+    .profile-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.7rem; }
+    .profile-pill { background: #1a1a1a; border: 1px solid #242424; border-radius: 20px; padding: 3px 10px; font-size: 0.72rem; color: #888; }
+    .profile-desc { font-size: 0.8rem; color: #666; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+    /* ── Segment bar ──────────────────────────────────────────── */
+    #segment-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .seg-btn { display: flex; align-items: center; gap: 0.35rem; background: #161616; border: 1px solid #2a2a2a; border-radius: 8px; color: #888; font-size: 0.82rem; font-weight: 600; padding: 0.45rem 0.9rem; cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s; white-space: nowrap; }
+    .seg-btn:hover { border-color: #444; color: #ccc; }
+    .seg-btn.active { border-color: #00e5ff; color: #00e5ff; background: rgba(0,229,255,0.05); }
+    .seg-btn[data-gated="true"] { opacity: 0.3; pointer-events: none; }
+
+    /* ── Movers ───────────────────────────────────────────────── */
+    #movers-section {
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 2rem 2.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .movers-card {
+      background: #161616;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .movers-heading {
+      padding: 0.65rem 1.1rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .movers-heading.gainers { color: #2ecc71; }
+    .movers-heading.losers  { color: #e05c5c; }
+
+    .mover-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 1.1rem;
+      border-bottom: 1px solid #1a1a1a;
+      font-size: 0.82rem;
+      gap: 0.5rem;
+    }
+
+    .mover-row:last-child { border-bottom: none; }
+    .mover-row:hover { background: #1a1a1a; cursor: pointer; }
+
+    .mover-symbol { font-weight: 700; color: #f0f0f0; min-width: 56px; }
+    .mover-name   { color: #555; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mover-price  { color: #aaa; min-width: 54px; text-align: right; }
+    .mover-pct    { font-weight: 700; min-width: 60px; text-align: right; }
+    .mover-pct.up   { color: #2ecc71; }
+    .mover-pct.down { color: #e05c5c; }
+
+    @media (max-width: 700px) { #movers-section { grid-template-columns: 1fr; } }
+
     /* ── Results area ─────────────────────────────────────────── */
     #results-area {
       display: none;
@@ -147,14 +224,10 @@
     @keyframes blink { 50% { opacity: 0; } }
 
     /* Chart */
-    .chart-wrap iframe {
-      width: 100%;
-      height: 340px;
-      border: none;
-      display: block;
-    }
-
     .chart-ticker-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       padding: 0.55rem 1.3rem;
       font-size: 0.78rem;
       color: #555;
@@ -162,6 +235,22 @@
     }
 
     .chart-ticker-label strong { color: #00e5ff; }
+
+    .chart-range-btns { display: flex; gap: 0.3rem; }
+    .chart-range-btn {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #555;
+      border-radius: 4px;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chart-range-btn:hover { border-color: #444; color: #aaa; }
+    .chart-range-btn.active { border-color: #00e5ff; color: #00e5ff; }
+
+    #chart-canvas-wrap { height: 360px; }
 
     .chart-no-ticker {
       display: flex;
@@ -513,10 +602,26 @@
     </div>
   </section>
 
+  <div id="movers-section">
+    <div class="movers-card">
+      <div class="movers-heading gainers">Top Gainers</div>
+      <div id="gainers-body"><div class="state-loading" style="padding:1rem 1.1rem"><div class="spinner"></div></div></div>
+    </div>
+    <div class="movers-card">
+      <div class="movers-heading losers">Top Losers</div>
+      <div id="losers-body"><div class="state-loading" style="padding:1rem 1.1rem"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
   <div id="results-area">
     <div class="results-label">Results for: <span id="result-query-text"></span></div>
 
-    <!-- Row 1: Summary -->
+    <!-- Profile (auto-loads when ticker resolved) -->
+    <div id="profile-card" class="results-card" style="display:none">
+      <div id="profile-body"></div>
+    </div>
+
+    <!-- AI Summary (always auto-streams) -->
     <div class="results-card">
       <div class="card-heading">Summary</div>
       <div class="card-body">
@@ -524,80 +629,97 @@
       </div>
     </div>
 
-    <!-- Row 2: Chart -->
-    <div class="results-card">
-      <div class="card-heading">Chart</div>
-      <div id="chart-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    <!-- Segment buttons -->
+    <div id="segment-bar" style="display:none">
+      <button class="seg-btn" id="seg-btn-chart"      data-gated="true" onclick="toggleSegment('chart')">Chart</button>
+      <button class="seg-btn" id="seg-btn-statements" data-gated="true" onclick="toggleSegment('statements')">Financial Statements</button>
+      <button class="seg-btn" id="seg-btn-metrics"    data-gated="true" onclick="toggleSegment('metrics')">Key Metrics</button>
+      <button class="seg-btn" id="seg-btn-insiders"   data-gated="true" onclick="toggleSegment('insiders')">Insider Trades</button>
+      <button class="seg-btn" id="seg-btn-news"       onclick="toggleSegment('news')">News</button>
+      <button class="seg-btn" id="seg-btn-sentiment"  onclick="toggleSegment('sentiment')">Sentiment</button>
+      <button class="seg-btn" id="seg-btn-markets"    onclick="toggleSegment('markets')">Prediction Markets</button>
     </div>
 
-    <!-- Row 3: Financial Statements, Dividends, Splits (hidden until ticker resolved) -->
-    <div class="results-card" id="massive-card" style="display:none">
-      <div class="card-heading">Financial Statements &amp; Corporate Actions</div>
-      <div id="massive-body"><div class="state-loading"><div class="spinner"></div></div></div>
-    </div>
-
-    <!-- Row 4: Fundamentals (hidden until ticker resolved) -->
-    <div class="results-card" id="fundamentals-card" style="display:none">
-      <div class="card-heading">Fundamentals</div>
-      <div id="fundamentals-body"><div class="state-loading"><div class="spinner"></div></div></div>
-    </div>
-
-    <!-- Row 3: News + Insider Trades -->
-    <div class="results-split">
-      <div class="results-card split-news">
-        <div class="card-heading">News</div>
-        <div id="news-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    <!-- Segment panels (all lazy) -->
+    <div id="seg-panel-chart" style="display:none">
+      <div class="results-card">
+        <div class="card-heading">Chart</div>
+        <div id="chart-body"></div>
       </div>
+    </div>
 
-      <div class="results-card split-insiders">
+    <div id="seg-panel-statements" style="display:none">
+      <div class="results-card">
+        <div class="card-heading">Financial Statements &amp; Corporate Actions</div>
+        <div id="massive-body"></div>
+      </div>
+    </div>
+
+    <div id="seg-panel-metrics" style="display:none">
+      <div class="results-card">
+        <div class="card-heading">Key Metrics</div>
+        <div id="fundamentals-body"></div>
+      </div>
+    </div>
+
+    <div id="seg-panel-insiders" style="display:none">
+      <div class="results-card">
         <div class="card-heading">Insider Trades</div>
-        <div id="insiders-body"><div class="state-loading"><div class="spinner"></div></div></div>
+        <div id="insiders-body"></div>
       </div>
     </div>
 
-    <!-- Row 4: Sentiment -->
-    <div class="results-card">
-      <div class="card-heading">Sentiment</div>
-      <div id="sentiment-body"><div class="state-loading"><div class="spinner"></div></div></div>
+    <div id="seg-panel-news" style="display:none">
+      <div class="results-card">
+        <div class="card-heading">News</div>
+        <div id="news-body"></div>
+      </div>
     </div>
 
-    <!-- Row 5: Prediction markets -->
-    <div class="results-card">
-      <div class="market-tabs">
-        <button class="mtab active" id="mtab-poly" onclick="switchMarketTab('poly')">
-          Polymarket <span class="tab-count" id="count-poly">—</span>
-        </button>
-        <button class="mtab" id="mtab-kalshi" onclick="switchMarketTab('kalshi')">
-          Kalshi <span class="tab-count" id="count-kalshi">—</span>
-        </button>
+    <div id="seg-panel-sentiment" style="display:none">
+      <div class="results-card">
+        <div class="card-heading">Sentiment</div>
+        <div id="sentiment-body"></div>
       </div>
+    </div>
 
-      <div class="market-panel active" id="mpanel-poly">
-        <div class="market-sort">
-          <label>Sort:</label>
-          <select id="sort-poly" onchange="applySort('poly')">
-            <option value="volume">Highest volume</option>
-            <option value="volume_week">Biggest volume change</option>
-            <option value="prediction_change">Biggest prediction change</option>
-            <option value="latest">Latest markets</option>
-          </select>
+    <div id="seg-panel-markets" style="display:none">
+      <div class="results-card">
+        <div class="market-tabs">
+          <button class="mtab active" id="mtab-poly" onclick="switchMarketTab('poly')">
+            Polymarket <span class="tab-count" id="count-poly">—</span>
+          </button>
+          <button class="mtab" id="mtab-kalshi" onclick="switchMarketTab('kalshi')">
+            Kalshi <span class="tab-count" id="count-kalshi">—</span>
+          </button>
         </div>
-        <div id="poly-body"><div class="state-loading"><div class="spinner"></div></div></div>
-      </div>
-
-      <div class="market-panel" id="mpanel-kalshi">
-        <div class="market-sort">
-          <label>Sort:</label>
-          <select id="sort-kalshi" onchange="applySort('kalshi')">
-            <option value="volume">Highest volume</option>
-            <option value="volume_week">Biggest volume change</option>
-            <option value="prediction_change">Biggest prediction change</option>
-            <option value="latest">Latest markets</option>
-          </select>
+        <div class="market-panel active" id="mpanel-poly">
+          <div class="market-sort">
+            <label>Sort:</label>
+            <select id="sort-poly" onchange="applySort('poly')">
+              <option value="volume">Highest volume</option>
+              <option value="volume_week">Biggest volume change</option>
+              <option value="prediction_change">Biggest prediction change</option>
+              <option value="latest">Latest markets</option>
+            </select>
+          </div>
+          <div id="poly-body"><div class="state-loading"><div class="spinner"></div></div></div>
         </div>
-        <div id="kalshi-body"><div class="state-loading"><div class="spinner"></div></div></div>
+        <div class="market-panel" id="mpanel-kalshi">
+          <div class="market-sort">
+            <label>Sort:</label>
+            <select id="sort-kalshi" onchange="applySort('kalshi')">
+              <option value="volume">Highest volume</option>
+              <option value="volume_week">Biggest volume change</option>
+              <option value="prediction_change">Biggest prediction change</option>
+              <option value="latest">Latest markets</option>
+            </select>
+          </div>
+          <div id="kalshi-body"><div class="state-loading"><div class="spinner"></div></div></div>
+        </div>
       </div>
     </div>
+
   </div>
 
   <section class="features">
@@ -634,6 +756,44 @@
       });
     }
 
+    // ── Movers ────────────────────────────────────────────────────
+    async function loadMovers() {
+      try {
+        const res  = await fetch('/api/movers');
+        const data = await res.json();
+        document.getElementById('gainers-body').innerHTML = renderMovers(data.gainers ?? []);
+        document.getElementById('losers-body').innerHTML  = renderMovers(data.losers ?? []);
+      } catch {
+        document.getElementById('gainers-body').innerHTML = '<div class="state-error" style="padding:0.75rem 1.1rem">Failed to load</div>';
+        document.getElementById('losers-body').innerHTML  = '<div class="state-error" style="padding:0.75rem 1.1rem">Failed to load</div>';
+      }
+    }
+
+    function renderMovers(stocks) {
+      if (!stocks.length) return '<div class="state-empty" style="padding:0.75rem 1.1rem">No data</div>';
+      return stocks.map(s => {
+        const pct = s.changePct != null ? s.changePct.toFixed(2) : '—';
+        const dir = s.changePct >= 0 ? 'up' : 'down';
+        const sign = s.changePct >= 0 ? '+' : '';
+        return `<div class="mover-row" onclick="document.getElementById('search-input').value='${s.symbol}';runSearch()">
+          <span class="mover-symbol">${s.symbol}</span>
+          <span class="mover-name">${s.name ?? ''}</span>
+          <span class="mover-price">$${s.price?.toFixed(2) ?? '—'}</span>
+          <span class="mover-pct ${dir}">${sign}${pct}%</span>
+        </div>`;
+      }).join('');
+    }
+
+    loadMovers();
+
+    // ── Global search state ──────────────────────────────────────
+    let _currentTicker = null;
+    let _currentName   = null;
+    let _currentQuery  = null;
+    const _segLoaded   = {};
+    const TICKER_SEGS  = ['chart', 'statements', 'metrics', 'insiders'];
+    const ALL_SEGS     = ['chart', 'statements', 'metrics', 'insiders', 'news', 'sentiment', 'markets'];
+
     async function runSearch() {
       const query = input.value.trim();
       if (!query) return;
@@ -641,31 +801,144 @@
       btn.disabled = true;
       btn.textContent = 'Searching…';
 
+      _currentTicker = null;
+      _currentName   = null;
+      _currentQuery  = query;
+      ALL_SEGS.forEach(s => { _segLoaded[s] = false; });
+
       resultsArea.style.display = 'block';
       document.getElementById('result-query-text').textContent = query;
       setTimeout(() => resultsArea.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
-      // Reset
+      // Reset profile
+      document.getElementById('profile-card').style.display = 'none';
+      document.getElementById('profile-body').innerHTML = '';
+
+      // Reset summary
+      document.getElementById('summary-body').innerHTML = '<span class="cursor"></span>';
+
+      // Hide segment bar and collapse all panels
+      document.getElementById('segment-bar').style.display = 'none';
+      ALL_SEGS.forEach(seg => {
+        document.getElementById(`seg-panel-${seg}`).style.display = 'none';
+        const b = document.getElementById(`seg-btn-${seg}`);
+        if (b) { b.classList.remove('active'); b.dataset.gated = TICKER_SEGS.includes(seg) ? 'true' : 'false'; }
+      });
+
+      // Reset markets inner state
       marketsData = { poly: [], kalshi: [] };
       switchMarketTab('poly');
-      document.getElementById('summary-body').innerHTML     = '<span class="cursor"></span>';
-      document.getElementById('chart-body').innerHTML       = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('fundamentals-card').style.display = 'none';
-      document.getElementById('massive-card').style.display = 'none';
-      document.getElementById('massive-body').innerHTML     = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('news-body').innerHTML        = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('insiders-body').innerHTML    = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('sentiment-body').innerHTML   = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('poly-body').innerHTML        = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('kalshi-body').innerHTML      = '<div class="state-loading"><div class="spinner"></div></div>';
-      document.getElementById('count-poly').textContent     = '—';
-      document.getElementById('count-kalshi').textContent   = '—';
+      document.getElementById('count-poly').textContent  = '—';
+      document.getElementById('count-kalshi').textContent = '—';
+      document.getElementById('poly-body').innerHTML   = '<div class="state-loading"><div class="spinner"></div></div>';
+      document.getElementById('kalshi-body').innerHTML = '<div class="state-loading"><div class="spinner"></div></div>';
 
       streamSummary(query);
-      fetchTicker(query);   // chains fetchFundamentals + fetchInsiders
-      fetchNews(query);
-      fetchSentiment(query);
-      fetchMarkets(query);
+      resolveTicker(query);
+    }
+
+    async function resolveTicker(query) {
+      try {
+        const res  = await fetch(`/api/ticker/${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.ticker) {
+          _currentTicker = data.ticker;
+          _currentName   = data.name ?? data.ticker;
+          fetchProfile(data.ticker);
+          showSegmentBar(true);
+        } else {
+          showSegmentBar(false);
+        }
+      } catch {
+        showSegmentBar(false);
+      }
+    }
+
+    function showSegmentBar(hasTicker) {
+      document.getElementById('segment-bar').style.display = 'flex';
+      TICKER_SEGS.forEach(seg => {
+        const b = document.getElementById(`seg-btn-${seg}`);
+        if (b) b.dataset.gated = hasTicker ? 'false' : 'true';
+      });
+    }
+
+    function toggleSegment(name) {
+      const panel = document.getElementById(`seg-panel-${name}`);
+      const b     = document.getElementById(`seg-btn-${name}`);
+      const open  = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'block';
+      b.classList.toggle('active', !open);
+      if (!open) loadSegment(name);
+    }
+
+    function loadSegment(name) {
+      if (_segLoaded[name]) return;
+      _segLoaded[name] = true;
+      switch (name) {
+        case 'chart':      fetchAndRenderChart(_currentTicker, _currentName); break;
+        case 'statements': fetchMassive(_currentTicker); break;
+        case 'metrics':    fetchFundamentals(_currentTicker); break;
+        case 'insiders':   fetchInsiders(_currentTicker); break;
+        case 'news':       fetchNews(_currentQuery); break;
+        case 'sentiment':  fetchSentiment(_currentQuery); break;
+        case 'markets':    fetchMarkets(_currentQuery); break;
+      }
+    }
+
+    async function fetchProfile(ticker) {
+      const card = document.getElementById('profile-card');
+      const body = document.getElementById('profile-body');
+      card.style.display = 'block';
+      body.innerHTML = '<div class="state-loading" style="padding:1.5rem"><div class="spinner"></div></div>';
+      try {
+        const res  = await fetch(`/api/profile/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        body.innerHTML = renderProfile(data);
+      } catch (err) {
+        body.innerHTML = `<div style="padding:1rem 1.3rem;color:#e05c5c;font-size:0.85rem">Could not load profile: ${err.message}</div>`;
+      }
+    }
+
+    function renderProfile(d) {
+      const up   = (d.change ?? 0) >= 0;
+      const sign = up ? '+' : '';
+      const chg  = d.change != null ? `${sign}${Number(d.change).toFixed(2)} (${sign}${Number(d.changePct).toFixed(2)}%)` : '';
+      const fmtCap = v => {
+        if (!v) return null;
+        if (v >= 1e12) return `$${(v/1e12).toFixed(2)}T`;
+        if (v >= 1e9)  return `$${(v/1e9).toFixed(2)}B`;
+        if (v >= 1e6)  return `$${(v/1e6).toFixed(2)}M`;
+        return `$${v}`;
+      };
+      const logo = d.image
+        ? `<img class="profile-logo" src="${d.image}" alt="" onerror="this.outerHTML='<div class=profile-logo-placeholder>🏢</div>'">`
+        : `<div class="profile-logo-placeholder">🏢</div>`;
+      const pills = [
+        d.sector, d.industry,
+        d.ceo        ? `CEO: ${d.ceo}` : null,
+        d.employees  ? `${Number(d.employees).toLocaleString()} employees` : null,
+        fmtCap(d.marketCap) ? `Mkt Cap: ${fmtCap(d.marketCap)}` : null,
+        d.country,
+        d.ipoDate    ? `IPO: ${d.ipoDate}` : null,
+      ].filter(Boolean);
+      return `<div class="profile-inner">
+        ${logo}
+        <div class="profile-main">
+          <div class="profile-name">${d.name ?? d.ticker}</div>
+          <div class="profile-ticker-row">
+            <span class="profile-ticker">${d.ticker}</span>
+            ${d.exchange ? `<span class="profile-exchange">${d.exchange}</span>` : ''}
+            ${d.website  ? `<a href="${d.website}" target="_blank" rel="noopener" style="font-size:0.72rem;color:#444;text-decoration:none">${d.website.replace(/^https?:\/\//,'')}</a>` : ''}
+          </div>
+          ${d.price != null ? `<div class="profile-price-row">
+            <span class="profile-price">$${Number(d.price).toFixed(2)}</span>
+            ${chg ? `<span class="profile-change ${up?'up':'down'}">${chg}</span>` : ''}
+          </div>` : ''}
+          ${pills.length ? `<div class="profile-pills">${pills.map(p=>`<span class="profile-pill">${p}</span>`).join('')}</div>` : ''}
+          ${d.description ? `<div class="profile-desc">${d.description}</div>` : ''}
+        </div>
+      </div>`;
     }
 
     // ── Summary ──────────────────────────────────────────────────
@@ -705,44 +978,79 @@
       }
     }
 
-    // ── Chart + Fundamentals + Insiders (ticker-gated) ───────────
-    async function fetchTicker(query) {
-      try {
-        const res  = await fetch(`/api/ticker/${encodeURIComponent(query)}`);
-        const data = await res.json();
-        document.getElementById('chart-body').innerHTML = renderChart(data.ticker, data.exchange, data.name);
+    let _chartInstance = null;
+    let _allCandles = [];
+    let _activeRange = '1Y';
 
-        if (data.ticker) {
-          document.getElementById('fundamentals-card').style.display = 'block';
-          document.getElementById('massive-card').style.display = 'block';
-          fetchFundamentals(data.ticker);
-          fetchInsiders(data.ticker);
-          fetchMassive(data.ticker);
-        } else {
-          document.getElementById('insiders-body').innerHTML =
-            '<div class="state-empty">No stock identified — enter a specific ticker.</div>';
-        }
-      } catch (err) {
-        document.getElementById('chart-body').innerHTML =
-          `<div class="chart-no-ticker">⚠ ${err.message}</div>`;
-        document.getElementById('insiders-body').innerHTML =
-          '<div class="state-empty">Could not resolve ticker.</div>';
-      }
+    const RANGES = {
+      '1M': 30, '3M': 90, '6M': 180, '1Y': 365,
+    };
+
+    function renderChartShell(ticker, name) {
+      return `
+        <div class="chart-ticker-label">
+          <span>${name ?? ticker} &middot; <strong>${ticker}</strong></span>
+          <div class="chart-range-btns">
+            ${Object.keys(RANGES).map(r => `<button class="chart-range-btn${r === _activeRange ? ' active' : ''}" onclick="setChartRange('${r}')">${r}</button>`).join('')}
+          </div>
+        </div>
+        <div id="chart-canvas-wrap"></div>`;
     }
 
-    function renderChart(ticker, exchange, name) {
-      if (!ticker) {
-        return `<div class="chart-no-ticker">
-          <div style="font-size:1.5rem">📉</div>
-          <div>No publicly traded security found.</div>
-          <div style="font-size:0.75rem;color:#333;margin-top:0.25rem">Try a specific stock ticker.</div>
-        </div>`;
+    function buildChart(candles) {
+      const wrap = document.getElementById('chart-canvas-wrap');
+      if (!wrap) return;
+      if (_chartInstance) { _chartInstance.remove(); _chartInstance = null; }
+
+      const chart = LightweightCharts.createChart(wrap, {
+        width:  wrap.clientWidth,
+        height: 360,
+        layout: { background: { color: '#161616' }, textColor: '#555' },
+        grid:   { vertLines: { color: '#1e1e1e' }, horzLines: { color: '#1e1e1e' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: '#1e1e1e' },
+        timeScale: { borderColor: '#1e1e1e', timeVisible: true },
+      });
+
+      const series = chart.addCandlestickSeries({
+        upColor: '#2ecc71', downColor: '#e05c5c',
+        borderUpColor: '#2ecc71', borderDownColor: '#e05c5c',
+        wickUpColor: '#2ecc71', wickDownColor: '#e05c5c',
+      });
+
+      // Candles arrive newest-first from API — reverse for the chart
+      const sorted = [...candles].reverse();
+      series.setData(sorted);
+      chart.timeScale().fitContent();
+      _chartInstance = chart;
+
+      // Resize with window
+      window.addEventListener('resize', () => {
+        if (_chartInstance) _chartInstance.applyOptions({ width: wrap.clientWidth });
+      });
+    }
+
+    function setChartRange(range) {
+      _activeRange = range;
+      document.querySelectorAll('.chart-range-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent === range);
+      });
+      buildChart(_allCandles.slice(0, RANGES[range]));
+    }
+
+    async function fetchAndRenderChart(ticker, name) {
+      const body = document.getElementById('chart-body');
+      body.innerHTML = renderChartShell(ticker, name);
+      try {
+        const res  = await fetch(`/api/chart/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        _allCandles = data.candles;
+        buildChart(_allCandles.slice(0, RANGES[_activeRange]));
+      } catch (err) {
+        document.getElementById('chart-canvas-wrap').innerHTML =
+          `<div class="chart-no-ticker">⚠ ${err.message}</div>`;
       }
-      const symbol = exchange ? `${exchange}:${ticker}` : ticker;
-      const src = `https://www.tradingview.com/widgetembed/?frameElementId=tv-chart&symbol=${encodeURIComponent(symbol)}&interval=D&hidesidetoolbar=1&saveimage=0&toolbarbg=0f0f0f&studies=[]&theme=dark&style=1&timezone=exchange&withdateranges=1&showpopupbutton=1&allow_symbol_change=0`;
-      return `
-        <div class="chart-ticker-label">${name ?? ticker} &middot; <strong>${ticker}</strong> &middot; ${exchange ?? ''}</div>
-        <iframe src="${src}" allowtransparency="true" frameborder="0" scrolling="no" allowfullscreen style="width:100%;height:340px;border:none;display:block"></iframe>`;
     }
 
     async function fetchFundamentals(ticker) {
